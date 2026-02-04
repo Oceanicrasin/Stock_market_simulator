@@ -6,6 +6,7 @@ def get_connection():
     return sqlite3.connect(DB_NAME)
 
 def init_db():
+    # Creates all the tables required for the program
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -22,10 +23,17 @@ def init_db():
     debt REAL NOT NULL
     )
     """)
+    cursor.execute("""
+     CREATE TABLE IF NOT EXISTS traders (
+      trader_id INTEGER PRIMARY KEY AUTOINCREMENT,
+       capital REAL NOT NULL
+       )
+     """)
     connection.commit()
     cursor.close()
 
 def repopulate_db():
+    # Fills all the tables with initial data
     connection = get_connection()
     cursor = connection.cursor()
     cursor.execute("""SELECT * FROM companies """)
@@ -80,19 +88,29 @@ def repopulate_db():
                 INSERT INTO companies
                 VALUES (11,"large_supermarket",100,1000,2000,1900,100,10,70)
                 """)
+    cursor.execute("""SELECT * FROM traders """)
+    traders = cursor.fetchall()
+    print(traders)
+    if not traders:
+        cursor.execute(""" 
+        INSERT INTO traders
+        VALUES (0,100000)
+        """)
     connection.commit()
     cursor.close()
 
 
-def remove_companies():
+def remove_table(table):
+    # drops a table
     connection = get_connection()
     cursor = connection.cursor()
-    cursor.execute("""DROP TABLE IF EXISTS companies""")
+    cursor.execute("""DROP TABLE IF EXISTS {}""".format(table))
     connection.commit()
     cursor.close()
 
 
 def print_db():
+    #outputs all the contents of a table to the terminal
     connection = get_connection()
     cursor = connection.cursor()
     cursor.execute("""SELECT * FROM companies """)
@@ -101,11 +119,18 @@ def print_db():
         print(company)
 
 def extract_table(table):
+    # returns a 2d list containing all the contents of a table
     connection = get_connection()
     cursor = connection.cursor()
     cursor.execute("""SELECT * FROM {} """.format(table))
     data = cursor.fetchall()
     return data
 
+def change_capital(trader_id, capital):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(""" UPDATE traders SET capital = {} WHERE trader_id = {} """.format(capital, trader_id))
+    connection.commit()
+    cursor.close()
 
-print(extract_table("companies"))
+
