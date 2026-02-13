@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1127cd80-f2e9-47c7-ae5e-8ea3ff7db2a8" name="Changes" comment="Iteration 3&#10;Created buy orders">
+    <list default="true" id="1127cd80-f2e9-47c7-ae5e-8ea3ff7db2a8" name="Changes" comment="Iteration 5.5&#10;Manual table ordering">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Main.py" beforeDir="false" afterPath="$PROJECT_DIR$/Main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/database.py" afterDir="false" />
@@ -98,13 +98,22 @@
       <option name="project" value="LOCAL" />
       <updated>1770242746486</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Iteration 5.5&#10;Manual table ordering">
+      <option name="closed" value="true" />
+      <created>1770316744045</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1770316744045</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Iteration 2" />
     <MESSAGE value="Iteration 3&#10;Created buy orders" />
-    <option name="LAST_COMMIT_MESSAGE" value="Iteration 3&#10;Created buy orders" />
+    <MESSAGE value="Iteration 5.5&#10;Manual table ordering" />
+    <option name="LAST_COMMIT_MESSAGE" value="Iteration 5.5&#10;Manual table ordering" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

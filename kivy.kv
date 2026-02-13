@@ -320,10 +320,6 @@ WindowManager:
                 text: "Your positions"
                 height: "10dp"
                 color: (0,0,0,1)
-            Label:
-                text: "Current Capital: "+root.get_Capital()
-                height: "10dp"
-                color: (0,0,0,1)
 
             ScrollView:
 
@@ -357,23 +353,20 @@ WindowManager:
             on_release: app.root.current = "home"
 
         BoxLayout:
-            orientation: "vertical"
+            orientation: "horizontal"
             size_hint: (1,0.85)
             pos_hint : {"x":0,"y":0}
 
-            Label:
-                text: "Your positions"
-                height: "10dp"
-                color: (0,0,0,1)
 
 
-            ScrollView:
-
-                GridLayout:
-                    id:buy_order_table
-                    cols: 6
-                    height: self.minimum_height
-
+            GridLayout:
+                size_hint_x: 0.5
+                id:buy_order_table
+                cols: 6
+            GridLayout:
+                size_hint_x: 0.5
+                id:sell_order_table
+                cols: 6
 
 
 

@@ -2,13 +2,6 @@ import database
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, Screen
-from kivy.uix.label import Label
-from kivy.uix.popup import Popup
-from kivy.uix.floatlayout import FloatLayout
-
-
-# def popup(message):
-#     layout = FloatLayout()
 from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.button import Button
@@ -25,6 +18,74 @@ def popup(message):
     popup = Popup(content=layout,size_hint=(0.6, 0.3),auto_dismiss=False)
     close_btn.bind(on_release=popup.dismiss)
     popup.open()
+
+def check_for_buy_match(b_trader_id,ticker,b_share_price,num_of_shares,total_value):
+    #check what the company is currently trading at:
+    companies = database.extract_table("companies")
+    current_share_price = companies[ticker][2]
+    # add to table if offer is below market price
+    if b_share_price < current_share_price:
+        database.add_order("buy",ticker,b_share_price,num_of_shares,total_value)
+        return
+    # else try to match with the lowest sell offer
+    offers = database.extract_company_orders("buy",ticker)
+    if not offers:
+        database.add_order("buy", ticker, b_share_price, num_of_shares, total_value)
+    for offer in offers:
+        print("From iteration:", offer)
+        if num_of_shares == offer[4]:
+            print("For executions:", offer)
+            execute_buy_trade(b_trader_id,ticker, b_share_price, num_of_shares,offer)
+            break
+
+
+
+
+
+def check_for_sell_match():
+    pass
+
+def execute_buy_trade(b_trader_id,ticker, b_share_price, num_of_shares,offer):
+    s_trader_id = offer[1]
+    s_share_price = offer[3]
+    total_value = offer[5]
+    #1 Remove sell offer from table
+    database.remove_order("sell",offer[0])
+    #2 Add the record to transaction_history
+    database.add_transaction(b_trader_id,"buy",ticker,s_share_price,num_of_shares,total_value)
+    database.add_transaction(s_trader_id, "sell", ticker, s_share_price, num_of_shares, total_value)
+    #3 Update the sellers capital
+    database.update_capital(s_trader_id,total_value)
+    #4 Update sellers current positions
+    s_position = database.extract_current_portfolio(s_trader_id,ticker)
+    if num_of_shares == s_position[0][3]:
+        #remove record
+        database.remove_position(s_trader_id,ticker)
+    elif num_of_shares < s_position[0][3]:
+        #update record
+        post_num_of_shares = s_position[0][3] - num_of_shares
+        post_total_value = post_num_of_shares * s_share_price
+        database.update_position_amount(s_trader_id,ticker,post_num_of_shares,s_position[0][2])
+    #5 Update buyers positions
+    b_position = database.extract_current_portfolio(b_trader_id,ticker)
+    if not b_position:
+        #add record
+        database.add_position(b_trader_id,ticker,s_share_price,num_of_shares,total_value)
+    else:
+        #update record
+        pre_num_of_shares = b_position[0][3]
+        pre_avg_price = b_position[0][2]
+        post_num_of_shares = pre_num_of_shares + num_of_shares
+        post_total_value = post_num_of_shares * s_share_price
+
+        avg_price = ((pre_avg_price * pre_num_of_shares) + (s_share_price * num_of_shares)) / post_num_of_shares
+        database.update_position_amount(b_trader_id,ticker,post_num_of_shares,avg_price)
+    #6 update the buyers capital
+    # add back capital that was deducted at time of order then subtract capital used in the order
+    capital_change = b_share_price * num_of_shares - s_share_price * num_of_shares
+    database.update_capital(b_trader_id,capital_change)
+    #7 update the share price values
+    database.update_share_price(s_share_price,ticker)
 
 
 
@@ -68,8 +129,8 @@ class PlaceOrderScreen(Screen):
         # ensure all values are the correct type
         try:
             ticker = int(self.ids.buy_company_input.text)
-            num_of_shares = float(self.ids.buy_num_of_shares_input.text)
-            share_price = int(self.ids.buy_share_price_input.text)
+            num_of_shares = int(self.ids.buy_num_of_shares_input.text)
+            share_price = float(self.ids.buy_share_price_input.text)
         except ValueError:
             popup("Invalid data type entered\n All values must be numbers")
             return
@@ -90,8 +151,8 @@ class PlaceOrderScreen(Screen):
             return
 
         capital -= required_capital
-        database.change_capital(ticker, capital)
-        database.insert_into_order_book(ticker,share_price,num_of_shares,required_capital)
+        database.set_capital(ticker, capital)
+        check_for_buy_match(0,ticker,share_price,num_of_shares,required_capital)
         database.print_db("buy_order_book")
         message = "Successfully placed order. Current Capital: " + str(capital)
         popup(message)
@@ -134,13 +195,12 @@ class PlaceOrderScreen(Screen):
 
 
 class PortfolioScreen(Screen):
-    def get_Capital(self):
-        capital = database.extract_table("traders")[0][1]
-        return str(capital)
-
     def on_enter(self):
         # runs every time you enter this screen
         positions = database.extract_table("current_positions")
+        capital = database.extract_table("traders")[0][1]
+        print("Test Capital:"+str(database.extract_table("traders")[1][1]))
+        self.add_widget(Label(text="Current Capital:"+str(capital), color=(0, 0, 0, 1)))
         self.ids.portfolio_table.clear_widgets()
         # headings for the table
         self.ids.portfolio_table.add_widget(Label(text="Trader_id",color=(0,0,0,1)))
@@ -174,6 +234,18 @@ class OrderBook(Screen):
         for order in buy_orders:
             for data in order:
                 self.ids.buy_order_table.add_widget(Label(text=str(data),color=(0,0,0,1)))
+        sell_orders = database.extract_table("sell_order_book")
+        self.ids.sell_order_table.clear_widgets()
+        # headings for the table
+        self.ids.sell_order_table.add_widget(Label(text="Sell_order_id",color=(0,0,0,1)))
+        self.ids.sell_order_table.add_widget(Label(text="Trader_id",color=(0,0,0,1)))
+        self.ids.sell_order_table.add_widget(Label(text="Ticker",color=(0,0,0,1)))
+        self.ids.sell_order_table.add_widget(Label(text="Share_price",color=(0,0,0,1)))
+        self.ids.sell_order_table.add_widget(Label(text="Num_of_shares",color=(0,0,0,1)))
+        self.ids.sell_order_table.add_widget(Label(text="total_value",color=(0,0,0,1)))
+        for order in sell_orders:
+            for data in order:
+                self.ids.sell_order_table.add_widget(Label(text=str(data),color=(0,0,0,1)))
 
 
 
@@ -189,26 +261,3 @@ class Stock_Market_Simulator(App):
 
 if __name__ == "__main__":
      Stock_Market_Simulator().run()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

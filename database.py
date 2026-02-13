@@ -125,6 +125,7 @@ def init_db():
 
     cursor.close()
 
+
 def repopulate_db():
     # Fills all the tables with initial data
     connection = get_connection()
@@ -188,6 +189,10 @@ def repopulate_db():
         INSERT INTO traders
         VALUES (0,100000)
         """)
+        cursor.execute(""" 
+        INSERT INTO traders
+        VALUES (1,100000)
+        """)
     cursor.execute(""" SELECT * FROM current_positions """)
     current_positions = cursor.fetchall()
     cursor.execute(""" SELECT * FROM transaction_history """)
@@ -211,7 +216,28 @@ def repopulate_db():
         cursor.execute(""" 
         INSERT INTO transaction_history VALUES (2,0,'BUY',2,1,1000,1000)
          """)
-
+        cursor.execute(""" 
+        INSERT INTO current_positions VALUES (1,0,1,1000,1000,0)
+         """)
+        cursor.execute(""" 
+        INSERT INTO current_positions VALUES (1,1,1,1000,1000,0)
+         """)
+        cursor.execute(""" 
+        INSERT INTO current_positions VALUES (1,2,1,1000,1000,0)
+         """)
+        cursor.execute(""" 
+        INSERT INTO transaction_history VALUES (3,1,'BUY',0,1,1000,1000)
+         """)
+        cursor.execute(""" 
+        INSERT INTO transaction_history VALUES (4,1,'BUY',1,1,1000,1000)
+         """)
+        cursor.execute(""" 
+        INSERT INTO transaction_history VALUES (5,1,'BUY',2,1,1000,1000)
+         """)
+    cursor.execute("""SELECT * FROM sell_order_book """)
+    sell_order_book = cursor.fetchall()
+    if not sell_order_book:
+        cursor.execute("""INSERT INTO sell_order_book VALUES (0,1,0,10,100,1000) """)
     connection.commit()
     cursor.close()
 
@@ -230,14 +256,6 @@ def clear_db():
     connection.commit()
     cursor.close()
 
-def clear_buy_order_book():
-    connection = get_connection()
-    cursor = connection.cursor()
-    cursor.execute("""DROP TABLE IF EXISTS buy_order_book""")
-    connection.commit()
-    cursor.close()
-
-
 def print_db(table):
     #outputs all the contents of a table to the terminal
     connection = get_connection()
@@ -246,6 +264,7 @@ def print_db(table):
     data = cursor.fetchall()
     for record in data:
         print(record)
+    cursor.close()
 
 def extract_table(table):
     # returns a 2d list containing all the contents of a table
@@ -255,17 +274,89 @@ def extract_table(table):
     data = cursor.fetchall()
     return data
 
-def change_capital(trader_id, capital):
+def set_capital(trader_id, capital):
     connection = get_connection()
     cursor = connection.cursor()
     cursor.execute(""" UPDATE traders SET capital = {} WHERE trader_id = {} """.format(capital, trader_id))
     connection.commit()
     cursor.close()
 
-def add_order(type, ticker, share_price, num_of_shares, total_value):
+def update_capital(trader_id, added_capital):
+    # increases that traders capital by the given amount
+    current_capital = extract_table("traders")[trader_id][1]
+    new_capital = current_capital + added_capital
+    set_capital(trader_id, new_capital)
+
+def add_transaction(trader_id,transaction_type,ticker,share_price,num_of_shares,total_value):
     connection = get_connection()
     cursor = connection.cursor()
-    if type == "buy":
+    cursor.execute(""" 
+            INSERT INTO transaction_history (trader_id, transaction_type, ticker, share_price, num_of_shares, total_value) 
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, (trader_id,transaction_type, ticker, share_price, num_of_shares, total_value))
+    connection.commit()
+
+def add_position(trader_id,ticker,avg_price,num_of_shares,total_value):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(""" 
+            INSERT INTO transaction_history (trader_id, ticker, avg_price, num_of_shares, total_value) 
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, (trader_id, ticker, avg_price, num_of_shares, total_value))
+    connection.commit()
+
+def extract_current_portfolio(trader_id,ticker):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(""" SELECT * FROM current_positions 
+    WHERE trader_id = {} AND ticker = {}; """.format(trader_id,ticker))
+    positions = cursor.fetchall()
+    cursor.close()
+    return positions
+
+def remove_position(trader_id,ticker):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(""" DELETE FROM current_positions  WHERE trader_id = {} AND ticker = {}; """.format(trader_id,ticker))
+    connection.commit()
+    cursor.close()
+
+def update_position_amount(trader_id,ticker,new_amount,avg_price):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(""" UPDATE current_positions 
+    SET num_of_shares = {} , avg_price = {} 
+    WHERE trader_id = {} AND ticker = {} """.format(new_amount,avg_price,trader_id,ticker))
+    connection.commit()
+    cursor.close()
+
+def extract_company_orders(order_type,ticker):
+    connection = get_connection()
+    cursor = connection.cursor()
+    if order_type == "buy":
+        cursor.execute(""" SELECT * FROM sell_order_book WHERE ticker = {} ORDER BY share_price ASC; """.format(ticker))
+    else:
+        cursor.execute(""" SELECT * FROM buy_order_book WHERE ticker = {} ORDER BY share_price DESC; """.format(ticker))
+    book = cursor.fetchall()
+    cursor.close()
+    return book
+
+def remove_order(order_type,id):
+    connection = get_connection()
+    cursor = connection.cursor()
+    if order_type == "buy":
+        cursor.execute(""" DELETE FROM buy_order_book WHERE buy_order_id = {} """.format(id))
+    else:
+        cursor.execute(""" DELETE FROM sell_order_book WHERE sell_order_id = {} """.format(id))
+    connection.commit()
+    cursor.close()
+
+
+def add_order(order_type, ticker, share_price, num_of_shares, total_value):
+    connection = get_connection()
+    cursor = connection.cursor()
+    print("Order Added")
+    if order_type == "buy":
         cursor.execute(""" 
         INSERT INTO buy_order_book (trader_id, ticker, share_price, num_of_shares, total_value) 
         VALUES (?, ?, ?, ?, ?)
@@ -278,55 +369,74 @@ def add_order(type, ticker, share_price, num_of_shares, total_value):
         """, (0, ticker, share_price, num_of_shares, total_value))
         connection.commit()
 
-
-def insert_into_order_book(ticker, share_price, num_of_shares, total_value):
+def update_share_price(share_price,ticker):
     connection = get_connection()
     cursor = connection.cursor()
-    cursor.execute(""" SELECT * FROM buy_order_book""")
-    item = [ticker, share_price, num_of_shares, total_value]
-    order_book = cursor.fetchall()
-    print("Order book Initial:", order_book)
-    # delete the order_ids:
-    for record in order_book:
-        record.pop(0)
-    print("Order book without id:", order_book)
-    i = 0
-    added = False
-    for record in order_book:
-        # causes order book to be ordered by ascending ticker
-        if ticker < record[1]:
-            insert(item,order_book,i)
-            added = True
-            break
-        elif ticker == record[1]:
-            if share_price <= record[2]:
-                #causes order book to be ordered by ascending share price
-                insert(item,order_book,i)
-                added = True
-                break
-    if not added:
-        order_book.append(item)
+    # Update the share price in the companies table
+    cursor.execute(""" UPDATE companies SET share_price = {} WHERE ticker = {} """.format(share_price,ticker))
+    # update profit and total value in portfolio table to reflect new share price
+    cursor.execute("""SELECT trader_id,avg_price,num_of_shares FROM current_positions WHERE ticker = {} """.format(ticker))
+    positions = cursor.fetchall()
+    for position in positions:
+        trader_id = position[0]
+        avg_price = position[1]
+        num_of_shares = position[2]
+        profit = (share_price - avg_price) * num_of_shares
+        total_value = share_price * num_of_shares
+        cursor.execute(""" UPDATE current_positions 
+            SET total_value = {} , profit = {} 
+            WHERE trader_id = {} AND ticker = {} """.format(total_value, profit, trader_id, ticker))
+    connection.commit()
+    cursor.close()
 
-    #add records into database
-    print("Order book with info: ",order_book)
-    clear_buy_order_book()
-    init_db()
-    for record in order_book:
-        add_order("buy",record[0],record[1],record[2],record[3])
-
-
-def insert(item,lst,index):
-    n_lst=[]
-    for i in range(0,len(lst)-1):
-        if i == index:
-            n_lst.append(item)
-        n_lst.append(lst[i])
-    return n_lst
+#
+# def insert_into_order_book(ticker, share_price, num_of_shares, total_value):
+#     connection = get_connection()
+#     cursor = connection.cursor()
+#     cursor.execute(""" SELECT * FROM buy_order_book""")
+#     item = [ticker, share_price, num_of_shares, total_value]
+#     order_book = cursor.fetchall()
+#     print("Order book Initial:", order_book)
+#     # delete the order_ids:
+#     for record in order_book:
+#         record.pop(0)
+#     print("Order book without id:", order_book)
+#     i = 0
+#     added = False
+#     for record in order_book:
+#         # causes order book to be ordered by ascending ticker
+#         if ticker < record[1]:
+#             insert(item,order_book,i)
+#             added = True
+#             break
+#         elif ticker == record[1]:
+#             if share_price <= record[2]:
+#                 #causes order book to be ordered by ascending share price
+#                 insert(item,order_book,i)
+#                 added = True
+#                 break
+#     if not added:
+#         order_book.append(item)
+#
+#     #add records into database
+#     print("Order book with info: ",order_book)
+#     clear_buy_order_book()
+#     init_db()
+#     for record in order_book:
+#         add_order("buy",record[0],record[1],record[2],record[3])
+#
+#
+# def insert(item,lst,index):
+#     n_lst=[]
+#     for i in range(0,len(lst)-1):
+#         if i == index:
+#             n_lst.append(item)
+#         n_lst.append(lst[i])
+#     return n_lst
 
 # a = insert(10,[1,2,3,4],1)
 # print (a)
 
-print_db("buy_order_book")
 
 
 
