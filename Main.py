@@ -20,23 +20,40 @@ def popup(message):
     popup.open()
 
 def check_for_buy_match(b_trader_id,ticker,b_share_price,num_of_shares,total_value):
-    #check what the company is currently trading at:
-    companies = database.extract_table("companies")
-    current_share_price = companies[ticker][2]
-    # add to table if offer is below market price
-    if b_share_price < current_share_price:
-        database.add_order("buy",ticker,b_share_price,num_of_shares,total_value)
-        return
-    # else try to match with the lowest sell offer
-    offers = database.extract_company_orders("buy",ticker)
-    if not offers:
-        database.add_order("buy", ticker, b_share_price, num_of_shares, total_value)
-    for offer in offers:
-        print("From iteration:", offer)
-        if num_of_shares == offer[4]:
-            print("For executions:", offer)
+    while True:
+        offers = database.extract_company_orders("sell", ticker)
+        # add buy order if there are no sell orders
+        if not offers:
+            database.add_order("buy", ticker, b_share_price, num_of_shares, total_value)
+            return
+        offer = offers[0]
+        sell_price = offer[3]
+        # add to table if offer is below lowest sell order
+        if b_share_price < sell_price:
+            database.add_order("buy",ticker,b_share_price,num_of_shares,total_value)
+            return
+        # else try to match with the lowest sell offer
+        s_num_of_shares = offer[4]
+        s_total_value = offer[5]
+        if num_of_shares < s_num_of_shares:
+            # execute on common shares
             execute_buy_trade(b_trader_id,ticker, b_share_price, num_of_shares,offer)
-            break
+            s_num_of_shares -= num_of_shares
+            s_total_value = s_num_of_shares * sell_price
+            # create new sell order on remaining shares
+            database.add_order("sell", ticker, sell_price, s_num_of_shares, s_total_value)
+            return
+        elif num_of_shares == s_num_of_shares:
+            print("For executions:", offers[0])
+            execute_buy_trade(b_trader_id, ticker, b_share_price, num_of_shares, offer)
+            return
+        else:
+            # execute on common shares
+            execute_buy_trade(b_trader_id, ticker, b_share_price, num_of_shares, offer)
+            # repeat the function but with the buy order having less shares
+            num_of_shares -= s_num_of_shares
+            total_value = num_of_shares * b_share_price
+
 
 
 
@@ -46,9 +63,13 @@ def check_for_sell_match():
     pass
 
 def execute_buy_trade(b_trader_id,ticker, b_share_price, num_of_shares,offer):
+
+    if offer[4] < num_of_shares:
+        #take the lower one as trade should only be executed on the common amount
+        num_of_shares = offer[4]
     s_trader_id = offer[1]
     s_share_price = offer[3]
-    total_value = offer[5]
+    total_value = s_share_price * num_of_shares
     #1 Remove sell offer from table
     database.remove_order("sell",offer[0])
     #2 Add the record to transaction_history

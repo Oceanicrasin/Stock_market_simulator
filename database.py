@@ -237,7 +237,8 @@ def repopulate_db():
     cursor.execute("""SELECT * FROM sell_order_book """)
     sell_order_book = cursor.fetchall()
     if not sell_order_book:
-        cursor.execute("""INSERT INTO sell_order_book VALUES (0,1,0,10,100,1000) """)
+        cursor.execute("""INSERT INTO sell_order_book VALUES (0,1,0,5,100,500) """)
+        cursor.execute("""INSERT INTO sell_order_book VALUES (1,1,0,10,100,1000) """)
     connection.commit()
     cursor.close()
 
@@ -333,7 +334,7 @@ def update_position_amount(trader_id,ticker,new_amount,avg_price):
 def extract_company_orders(order_type,ticker):
     connection = get_connection()
     cursor = connection.cursor()
-    if order_type == "buy":
+    if order_type == "sell":
         cursor.execute(""" SELECT * FROM sell_order_book WHERE ticker = {} ORDER BY share_price ASC; """.format(ticker))
     else:
         cursor.execute(""" SELECT * FROM buy_order_book WHERE ticker = {} ORDER BY share_price DESC; """.format(ticker))
