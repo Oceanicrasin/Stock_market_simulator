@@ -22,59 +22,87 @@ def popup(message):
 def check_for_buy_match(b_trader_id,ticker,b_share_price,num_of_shares,total_value):
     while True:
         offers = database.extract_company_orders("sell", ticker)
-        # add buy order if there are no sell orders
+        database.add_order("buy",b_trader_id, ticker, b_share_price, num_of_shares, total_value)
+        buy_offer = database.get_last_record("buy_order_book","buy_order_id")[0]
+        # end the function if there are no sell orders
         if not offers:
-            database.add_order("buy", ticker, b_share_price, num_of_shares, total_value)
             return
         offer = offers[0]
         sell_price = offer[3]
-        # add to table if offer is below lowest sell order
+        # end function is buy order is below lowest sell offer
         if b_share_price < sell_price:
-            database.add_order("buy",ticker,b_share_price,num_of_shares,total_value)
             return
         # else try to match with the lowest sell offer
         s_num_of_shares = offer[4]
         s_total_value = offer[5]
         if num_of_shares < s_num_of_shares:
             # execute on common shares
-            execute_buy_trade(b_trader_id,ticker, b_share_price, num_of_shares,offer)
+            execute_trade(buy_offer,offer,sell_price,num_of_shares)
             s_num_of_shares -= num_of_shares
             s_total_value = s_num_of_shares * sell_price
+            s_trader_id = offer[1]
             # create new sell order on remaining shares
-            database.add_order("sell", ticker, sell_price, s_num_of_shares, s_total_value)
+            database.add_order("sell",s_trader_id ,ticker, sell_price, s_num_of_shares, s_total_value)
             return
         elif num_of_shares == s_num_of_shares:
-            print("For executions:", offers[0])
-            execute_buy_trade(b_trader_id, ticker, b_share_price, num_of_shares, offer)
+            execute_trade(buy_offer,offer,sell_price,num_of_shares)
             return
         else:
             # execute on common shares
-            execute_buy_trade(b_trader_id, ticker, b_share_price, num_of_shares, offer)
+            execute_trade(buy_offer,offer,sell_price,s_num_of_shares)
             # repeat the function but with the buy order having less shares
             num_of_shares -= s_num_of_shares
             total_value = num_of_shares * b_share_price
 
+def check_for_sell_match(s_trader_id,ticker,s_share_price,num_of_shares,total_value):
+    while True:
+        offers = database.extract_company_orders("buy", ticker)
+        database.add_order("sell",s_trader_id, ticker, s_share_price, num_of_shares, total_value)
+        sell_offer = database.get_last_record("sell_order_book","sell_order_id")[0]
+        # end the function if there are no sell orders
+        if not offers:
+            return
+        offer = offers[0]
+        buy_price = offer[3]
+        # end function is sell order is above highest buy offer
+        if s_share_price > buy_price:
+            return
+        # else try to match with the highest buy offer
+        b_num_of_shares = offer[4]
+        b_total_value = offer[5]
+        if num_of_shares < b_num_of_shares:
+            # execute on common shares
+            execute_trade(offer,sell_offer,buy_price,num_of_shares)
+            b_num_of_shares -= num_of_shares
+            b_total_value = b_num_of_shares * buy_price
+            b_trader_id = offer[1]
+            # create new buy order on remaining shares
+            database.add_order("buy",b_trader_id ,ticker, buy_price, b_num_of_shares,b_total_value)
+            return
+        elif num_of_shares == b_num_of_shares:
+            execute_trade(offer,sell_offer,buy_price,num_of_shares)
+            return
+        else:
+            # execute on common shares
+            execute_trade(offer,sell_offer,buy_price,b_num_of_shares)
+            # repeat the function but with the buy order having less shares
+            num_of_shares -= b_num_of_shares
+            total_value = num_of_shares * s_share_price
 
 
-
-
-
-def check_for_sell_match():
-    pass
-
-def execute_buy_trade(b_trader_id,ticker, b_share_price, num_of_shares,offer):
-
-    if offer[4] < num_of_shares:
-        #take the lower one as trade should only be executed on the common amount
-        num_of_shares = offer[4]
-    s_trader_id = offer[1]
-    s_share_price = offer[3]
-    total_value = s_share_price * num_of_shares
-    #1 Remove sell offer from table
-    database.remove_order("sell",offer[0])
+def execute_trade(b_offer, s_offer,share_price,num_of_shares):
+    b_trader_id = b_offer[1]
+    ticker = b_offer[2]
+    b_share_price = b_offer[3]
+    s_trader_id = s_offer[1]
+    s_share_price = s_offer[3]
+    total_value = share_price * num_of_shares
+    #1 Remove sell and buy offer from table
+    database.remove_order("sell",s_offer[0])
+    database.remove_order("buy", b_offer[0])
     #2 Add the record to transaction_history
-    database.add_transaction(b_trader_id,"buy",ticker,s_share_price,num_of_shares,total_value)
-    database.add_transaction(s_trader_id, "sell", ticker, s_share_price, num_of_shares, total_value)
+    database.add_transaction(b_trader_id,"buy",ticker,share_price,num_of_shares,total_value)
+    database.add_transaction(s_trader_id, "sell", ticker, share_price, num_of_shares, total_value)
     #3 Update the sellers capital
     database.update_capital(s_trader_id,total_value)
     #4 Update sellers current positions
@@ -85,7 +113,6 @@ def execute_buy_trade(b_trader_id,ticker, b_share_price, num_of_shares,offer):
     elif num_of_shares < s_position[0][3]:
         #update record
         post_num_of_shares = s_position[0][3] - num_of_shares
-        post_total_value = post_num_of_shares * s_share_price
         database.update_position_amount(s_trader_id,ticker,post_num_of_shares,s_position[0][2])
     #5 Update buyers positions
     b_position = database.extract_current_portfolio(b_trader_id,ticker)
@@ -97,16 +124,15 @@ def execute_buy_trade(b_trader_id,ticker, b_share_price, num_of_shares,offer):
         pre_num_of_shares = b_position[0][3]
         pre_avg_price = b_position[0][2]
         post_num_of_shares = pre_num_of_shares + num_of_shares
-        post_total_value = post_num_of_shares * s_share_price
 
-        avg_price = ((pre_avg_price * pre_num_of_shares) + (s_share_price * num_of_shares)) / post_num_of_shares
+        avg_price = ((pre_avg_price * pre_num_of_shares) + (share_price * num_of_shares)) / post_num_of_shares
         database.update_position_amount(b_trader_id,ticker,post_num_of_shares,avg_price)
     #6 update the buyers capital
     # add back capital that was deducted at time of order then subtract capital used in the order
-    capital_change = b_share_price * num_of_shares - s_share_price * num_of_shares
+    capital_change = (b_share_price*num_of_shares)- (share_price * num_of_shares)
     database.update_capital(b_trader_id,capital_change)
     #7 update the share price values
-    database.update_share_price(s_share_price,ticker)
+    database.update_share_price(share_price,ticker)
 
 
 
@@ -205,7 +231,7 @@ class PlaceOrderScreen(Screen):
                 if position[3] >= num_of_shares:
                     message = "Successfully placed order."
                     popup(message)
-                    database.add_order("sell", ticker, share_price, num_of_shares, share_price*num_of_shares)
+                    check_for_sell_match(0, ticker, share_price, num_of_shares, share_price*num_of_shares)
                     database.print_db("sell_order_book")
                     return
                 else:

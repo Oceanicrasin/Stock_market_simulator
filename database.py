@@ -234,11 +234,10 @@ def repopulate_db():
         cursor.execute(""" 
         INSERT INTO transaction_history VALUES (5,1,'BUY',2,1,1000,1000)
          """)
-    cursor.execute("""SELECT * FROM sell_order_book """)
-    sell_order_book = cursor.fetchall()
-    if not sell_order_book:
-        cursor.execute("""INSERT INTO sell_order_book VALUES (0,1,0,5,100,500) """)
-        cursor.execute("""INSERT INTO sell_order_book VALUES (1,1,0,10,100,1000) """)
+    cursor.execute("""SELECT * FROM buy_order_book """)
+    buy_order_book = cursor.fetchall()
+    if not buy_order_book:
+        cursor.execute("""INSERT INTO buy_order_book VALUES (0,1,0,10,200,2000) """)
     connection.commit()
     cursor.close()
 
@@ -353,7 +352,7 @@ def remove_order(order_type,id):
     cursor.close()
 
 
-def add_order(order_type, ticker, share_price, num_of_shares, total_value):
+def add_order(order_type,trader_id, ticker, share_price, num_of_shares, total_value):
     connection = get_connection()
     cursor = connection.cursor()
     print("Order Added")
@@ -361,13 +360,13 @@ def add_order(order_type, ticker, share_price, num_of_shares, total_value):
         cursor.execute(""" 
         INSERT INTO buy_order_book (trader_id, ticker, share_price, num_of_shares, total_value) 
         VALUES (?, ?, ?, ?, ?)
-        """, (0, ticker, share_price, num_of_shares, total_value))
+        """, (trader_id, ticker, share_price, num_of_shares, total_value))
         connection.commit()
     else:
         cursor.execute(""" 
         INSERT INTO sell_order_book (trader_id, ticker, share_price, num_of_shares, total_value) 
         VALUES (?, ?, ?, ?, ?)
-        """, (0, ticker, share_price, num_of_shares, total_value))
+        """, (trader_id, ticker, share_price, num_of_shares, total_value))
         connection.commit()
 
 def update_share_price(share_price,ticker):
@@ -390,6 +389,13 @@ def update_share_price(share_price,ticker):
     connection.commit()
     cursor.close()
 
+def get_last_record(table,field):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute("""SELECT * FROM {} ORDER BY {} DESC LIMIT 1 """.format(table,field))
+    records = cursor.fetchall()
+    cursor.close()
+    return records
 #
 # def insert_into_order_book(ticker, share_price, num_of_shares, total_value):
 #     connection = get_connection()
