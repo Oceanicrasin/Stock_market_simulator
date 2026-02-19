@@ -189,10 +189,6 @@ def repopulate_db():
         INSERT INTO traders
         VALUES (0,100000)
         """)
-        cursor.execute(""" 
-        INSERT INTO traders
-        VALUES (1,100000)
-        """)
     cursor.execute(""" SELECT * FROM current_positions """)
     current_positions = cursor.fetchall()
     cursor.execute(""" SELECT * FROM transaction_history """)
@@ -216,30 +212,19 @@ def repopulate_db():
         cursor.execute(""" 
         INSERT INTO transaction_history VALUES (2,0,'BUY',2,1,1000,1000)
          """)
-        cursor.execute(""" 
-        INSERT INTO current_positions VALUES (1,0,1,1000,1000,0)
-         """)
-        cursor.execute(""" 
-        INSERT INTO current_positions VALUES (1,1,1,1000,1000,0)
-         """)
-        cursor.execute(""" 
-        INSERT INTO current_positions VALUES (1,2,1,1000,1000,0)
-         """)
-        cursor.execute(""" 
-        INSERT INTO transaction_history VALUES (3,1,'BUY',0,1,1000,1000)
-         """)
-        cursor.execute(""" 
-        INSERT INTO transaction_history VALUES (4,1,'BUY',1,1,1000,1000)
-         """)
-        cursor.execute(""" 
-        INSERT INTO transaction_history VALUES (5,1,'BUY',2,1,1000,1000)
-         """)
-    cursor.execute("""SELECT * FROM buy_order_book """)
-    buy_order_book = cursor.fetchall()
-    if not buy_order_book:
-        cursor.execute("""INSERT INTO buy_order_book VALUES (0,1,0,10,200,2000) """)
     connection.commit()
     cursor.close()
+
+def bots_exist():
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(""" SELECT * FROM traders """)
+    traders = cursor.fetchall()
+    if len(traders) > 1:
+        cursor.close()
+        return True
+    cursor.close()
+    return False
 
 
 def clear_db():
@@ -281,6 +266,14 @@ def set_capital(trader_id, capital):
     connection.commit()
     cursor.close()
 
+def add_trader(capital):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(""" INSERT INTO traders (capital) VALUES (?)""", (capital,))
+    connection.commit()
+    cursor.close()
+
+
 def update_capital(trader_id, added_capital):
     # increases that traders capital by the given amount
     current_capital = extract_table("traders")[trader_id][1]
@@ -296,14 +289,15 @@ def add_transaction(trader_id,transaction_type,ticker,share_price,num_of_shares,
             """, (trader_id,transaction_type, ticker, share_price, num_of_shares, total_value))
     connection.commit()
 
-def add_position(trader_id,ticker,avg_price,num_of_shares,total_value):
+def add_position(trader_id,ticker,avg_price,num_of_shares,total_value, profit):
     connection = get_connection()
     cursor = connection.cursor()
     cursor.execute(""" 
-            INSERT INTO transaction_history (trader_id, ticker, avg_price, num_of_shares, total_value) 
+            INSERT INTO current_positions (trader_id, ticker, avg_price, num_of_shares, total_value,profit) 
             VALUES (?, ?, ?, ?, ?, ?)
-            """, (trader_id, ticker, avg_price, num_of_shares, total_value))
+            """, (str(trader_id), str(ticker), str(avg_price), str(num_of_shares), str(total_value),str(profit)))
     connection.commit()
+    cursor.close()
 
 def extract_current_portfolio(trader_id,ticker):
     connection = get_connection()
@@ -351,7 +345,6 @@ def remove_order(order_type,id):
     connection.commit()
     cursor.close()
 
-
 def add_order(order_type,trader_id, ticker, share_price, num_of_shares, total_value):
     connection = get_connection()
     cursor = connection.cursor()
@@ -389,6 +382,14 @@ def update_share_price(share_price,ticker):
     connection.commit()
     cursor.close()
 
+def get_share_price(ticker):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(""" SELECT * FROM companies WHERE ticker = {} """.format(ticker))
+    share_price = cursor.fetchall()[0][2]
+    cursor.close()
+    return share_price
+
 def get_last_record(table,field):
     connection = get_connection()
     cursor = connection.cursor()
@@ -396,53 +397,10 @@ def get_last_record(table,field):
     records = cursor.fetchall()
     cursor.close()
     return records
-#
-# def insert_into_order_book(ticker, share_price, num_of_shares, total_value):
-#     connection = get_connection()
-#     cursor = connection.cursor()
-#     cursor.execute(""" SELECT * FROM buy_order_book""")
-#     item = [ticker, share_price, num_of_shares, total_value]
-#     order_book = cursor.fetchall()
-#     print("Order book Initial:", order_book)
-#     # delete the order_ids:
-#     for record in order_book:
-#         record.pop(0)
-#     print("Order book without id:", order_book)
-#     i = 0
-#     added = False
-#     for record in order_book:
-#         # causes order book to be ordered by ascending ticker
-#         if ticker < record[1]:
-#             insert(item,order_book,i)
-#             added = True
-#             break
-#         elif ticker == record[1]:
-#             if share_price <= record[2]:
-#                 #causes order book to be ordered by ascending share price
-#                 insert(item,order_book,i)
-#                 added = True
-#                 break
-#     if not added:
-#         order_book.append(item)
-#
-#     #add records into database
-#     print("Order book with info: ",order_book)
-#     clear_buy_order_book()
-#     init_db()
-#     for record in order_book:
-#         add_order("buy",record[0],record[1],record[2],record[3])
-#
-#
-# def insert(item,lst,index):
-#     n_lst=[]
-#     for i in range(0,len(lst)-1):
-#         if i == index:
-#             n_lst.append(item)
-#         n_lst.append(lst[i])
-#     return n_lst
 
-# a = insert(10,[1,2,3,4],1)
-# print (a)
+
+connection = get_connection()
+cursor = connection.cursor()
 
 
 

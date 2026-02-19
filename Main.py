@@ -6,6 +6,8 @@ from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
+import random
 
 def popup(message):
 
@@ -89,7 +91,6 @@ def check_for_sell_match(s_trader_id,ticker,s_share_price,num_of_shares,total_va
             num_of_shares -= b_num_of_shares
             total_value = num_of_shares * s_share_price
 
-
 def execute_trade(b_offer, s_offer,share_price,num_of_shares):
     b_trader_id = b_offer[1]
     ticker = b_offer[2]
@@ -118,7 +119,7 @@ def execute_trade(b_offer, s_offer,share_price,num_of_shares):
     b_position = database.extract_current_portfolio(b_trader_id,ticker)
     if not b_position:
         #add record
-        database.add_position(b_trader_id,ticker,s_share_price,num_of_shares,total_value)
+        database.add_position(b_trader_id,ticker,s_share_price,num_of_shares,total_value,0)
     else:
         #update record
         pre_num_of_shares = b_position[0][3]
@@ -134,20 +135,47 @@ def execute_trade(b_offer, s_offer,share_price,num_of_shares):
     #7 update the share price values
     database.update_share_price(share_price,ticker)
 
+class Bot:
+    def __init__(self,ticker,exists):
+        self.ticker = ticker
+        if not exists:
+            database.add_trader("10000")
+            self.id = database.get_last_record("traders","trader_id")[0][0]
+            database.add_position(self.id,self.ticker,1,1000,1000,0)
+        else:
+            self.id = ticker + 1
+
+    def generate_order(self):
+        # determines whether the bot will play a buy or sell order
+        choice_1 = random.randint(0,1)
+        # determine the percentage relative to share price the bot will place the order at
+        choice_2 = random.randint(0,1)
+        share_price = float(database.get_share_price(self.ticker))
+        if choice_1 == 0:
+            if choice_2 == 0:
+                share_price *= 1.05
+                check_for_buy_match(self.id,self.ticker,share_price,100,share_price*100)
+            else:
+                share_price *= 1.1
+                check_for_buy_match(self.id, self.ticker, share_price, 100, share_price * 100)
+        else:
+            if choice_2 == 0:
+                share_price *= 0.95
+                check_for_sell_match(self.id,self.ticker,share_price,100,share_price*100)
+            else:
+                share_price *= 0.9
+                check_for_sell_match(self.id, self.ticker, share_price, 100, share_price * 100)
+        #ensures the bot can never run out of money
+        database.set_capital(self.id,10000)
 
 
 # define screens to be referred to in kivy file
 class HomeScreen(Screen):
     def deletion(self):
         # clears database then rebuilds it
-        database.print_db("companies")
-        database.print_db("traders")
-        database.print_db("current_positions")
-        database.print_db("transaction_history")
         database.clear_db()
         database.init_db()
         database.repopulate_db()
-
 
 class FinancialStatementScreen(Screen):
     def on_enter(self):
@@ -168,7 +196,6 @@ class FinancialStatementScreen(Screen):
         for company in companies:
             for data in company:
                 self.ids.table.add_widget(Label(text=str(data),color=(0,0,0,1)))
-
 
 class PlaceOrderScreen(Screen):
     def buy(self):
@@ -240,13 +267,48 @@ class PlaceOrderScreen(Screen):
         popup("You do not own this stock")
         return
 
+class TimeSkipScreen(Screen):
+    def on_enter(self, *args):
+        self.advance = Button(text="Advance",size_hint=(0.3, 0.1),pos_hint={"center_x": 0.5,"center_y": 0.4},background_color=(0.6, 0.85, 0.92, 1))
+        self.advance.bind(on_release=self.use_bots)
+        self.ids.solo.add_widget(self.advance)
+
+    def use_bots(self,instance):
+        if database.bots_exist():
+            exist = True
+        else:
+            exist = False
+        bot0 = Bot(0, exist)
+        bot1 = Bot(1, exist)
+        bot2 = Bot(2, exist)
+        bot3 = Bot(3, exist)
+        bot4 = Bot(4, exist)
+        bot5 = Bot(5, exist)
+        bot6 = Bot(6, exist)
+        bot7 = Bot(7, exist)
+        bot8 = Bot(8, exist)
+        bot9 = Bot(9, exist)
+        bot10 = Bot(10, exist)
+        bot11 = Bot(11, exist)
+        bot0.generate_order()
+        bot1.generate_order()
+        bot2.generate_order()
+        bot3.generate_order()
+        bot4.generate_order()
+        bot5.generate_order()
+        bot6.generate_order()
+        bot7.generate_order()
+        bot8.generate_order()
+        bot9.generate_order()
+        bot10.generate_order()
+        bot11.generate_order()
+
 
 class PortfolioScreen(Screen):
     def on_enter(self):
         # runs every time you enter this screen
         positions = database.extract_table("current_positions")
         capital = database.extract_table("traders")[0][1]
-        print("Test Capital:"+str(database.extract_table("traders")[1][1]))
         self.add_widget(Label(text="Current Capital:"+str(capital), color=(0, 0, 0, 1)))
         self.ids.portfolio_table.clear_widgets()
         # headings for the table
